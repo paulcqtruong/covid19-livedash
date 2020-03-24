@@ -13,7 +13,7 @@ external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 tickFont = {'size': 12, 'color': 'rgb(30,30,30)', 'family': 'Courier New, monospace'}
 
 
-def load_data(fileName, columnName):
+def load_single_data(fileName, columnName):
     data = pd.read_csv(baseURL + fileName) \
         .drop(['Lat', 'Long'], axis=1) \
         .melt(id_vars=['Province/State', 'Country/Region'], var_name='date', value_name=columnName) \
@@ -22,11 +22,17 @@ def load_data(fileName, columnName):
     return data
 
 
-confirmed_data = load_data('time_series_19-covid-Confirmed.csv', 'CumConfirmed')
-deaths_data = load_data('time_series_19-covid-Deaths.csv', 'CumDeaths')
-recovered_data = load_data('time_series_19-covid-Recovered.csv', 'CumRecovered')
-all_data = confirmed_data.merge(deaths_data).merge(recovered_data)
+def load_latest_data():
+    confirmed_data = load_single_data('time_series_covid19_confirmed_global.csv', 'CumConfirmed')  # time_series_19-covid-Confirmed.csv
+    deaths_data = load_single_data('time_series_covid19_deaths_global.csv', 'CumDeaths')  # time_series_19-covid-Deaths.csv
+    # recovered_data = load_single_data('time_series_19-covid-Recovered.csv', 'CumRecovered')
+    _data = confirmed_data.merge(deaths_data)
+    _data['CumConfirmed'] = _data['CumConfirmed'].astype(float)
+    _data['CumDeaths'] = _data['CumDeaths'].astype(float)
+    return _data
 
+
+all_data = load_latest_data()
 countries = all_data['Country/Region'].unique()
 countries = np.append(countries, '<all>')
 countries.sort()
@@ -57,7 +63,7 @@ app.layout = html.Div(
                 html.H5('Selected Metrics'),
                 dcc.Checklist(
                     id='metrics',
-                    options=[{'label': m, 'value': m} for m in ['Confirmed', 'Deaths', 'Recovered']],
+                    options=[{'label': m, 'value': m} for m in ['Confirmed', 'Deaths']],
                     value=['Confirmed', 'Deaths']
                 )
             ])
@@ -73,25 +79,11 @@ app.layout = html.Div(
     ])
 
 
-@app.callback(
-    [Output('state', 'options'), Output('state', 'value')],
-    [Input('country', 'value')]
-)
-def update_states(country):
-    states = list(all_data.loc[all_data['Country/Region'] == country]['Province/State'].unique())
-    states.insert(0, '<all>')
-    states.sort()
-    state_options = [{'label': s, 'value': s} for s in states]
-    state_value = state_options[0]['value']
-    return state_options, state_value
-
-
 def data_by_country(country):
     if country == '<all>':
         return all_data.drop('Country/Region', axis=1)
     else:
-        data = all_data.loc[all_data['Country/Region'] == country]
-        return data.drop('Country/Region', axis=1)
+        return all_data.loc[all_data['Country/Region'] == country].drop('Country/Region', axis=1)
 
 
 def accumulative_data(country, state):
@@ -108,7 +100,6 @@ def accumulative_data(country, state):
 def daily_change_data(data):
     data['NewConfirmed'] = data['CumConfirmed'].diff()
     data['NewDeaths'] = data['CumDeaths'].diff()
-    data['NewRecovered'] = data['CumRecovered'].diff()
     return data.dropna()
 
 
@@ -130,6 +121,19 @@ def barchart(data, metrics, prefix='', yaxisTitle=''):
         .update_yaxes(
         title=yaxisTitle, showgrid=True, gridcolor='#DDDDDD')
     return figure
+
+
+@app.callback(
+    [Output('state', 'options'), Output('state', 'value')],
+    [Input('country', 'value')]
+)
+def update_states(country):
+    states = list(all_data.loc[all_data['Country/Region'] == country]['Province/State'].unique())
+    states.insert(0, '<all>')
+    states.sort()
+    state_options = [{'label': s, 'value': s} for s in states]
+    state_value = state_options[0]['value']
+    return state_options, state_value
 
 
 @app.callback(
