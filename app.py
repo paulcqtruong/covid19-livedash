@@ -5,12 +5,17 @@ import plotly.graph_objects as go
 from dash.dependencies import Input, Output
 import pandas as pd
 import numpy as np
+from datetime import datetime
 
 baseURL = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/'
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 tickFont = {'size': 12, 'color': 'rgb(30,30,30)', 'family': 'Courier New, monospace'}
+app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+# app.config.suppress_callback_exceptions = True
+all_data = None
+countries = None
 
 
 def load_single_data(fileName, columnName):
@@ -32,51 +37,56 @@ def load_latest_data():
     return _data
 
 
-all_data = load_latest_data()
-countries = all_data['Country/Region'].unique()
-countries = np.append(countries, '<all>')
-countries.sort()
+def get_timenow():
+    return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
-app.layout = html.Div(
-    style={'font-family': 'Courier New, monospace'},
-    children=[
-        html.H1('Case History of the Coronavirus (COVID-19)'),
-        html.Div(className='row', children=[
-            html.Div(className='four columns', children=[
-                html.H5('Country'),
-                dcc.Dropdown(
-                    id='country',
-                    options=[{'label': c, 'value': c} for c in countries],
-                    value='<all>'
-                )
+def app_layout():
+    global all_data, countries
+    all_data = load_latest_data()
+    countries = all_data['Country/Region'].unique()
+    countries = np.append(countries, '<all>')
+    countries.sort()
+    return html.Div(
+        id='main_layout',
+        style={'font-family': 'Courier New, monospace'},
+        children=[
+            html.Div(f'Refresh the page to update (Last Updated {str(get_timenow())})', id='update-time'),
+            html.H1('Case History of the Coronavirus (COVID-19)'),
+            html.Div(className='row', children=[
+                html.Div(className='four columns', children=[
+                    html.H5('Country'),
+                    dcc.Dropdown(
+                        id='country',
+                        options=[{'label': c, 'value': c} for c in countries],
+                        value='<all>'
+                    )
+                ]),
+                html.Div(className='four columns', children=[
+                    html.H5('State / Province'),
+                    dcc.Dropdown(
+                        id='state',
+                        value='<all>'
+                    )
+                ]),
+                html.Div(className='four columns', children=[
+                    html.H5('Selected Metrics'),
+                    dcc.Checklist(
+                        id='metrics',
+                        options=[{'label': m, 'value': m} for m in ['Confirmed', 'Deaths']],
+                        value=['Confirmed', 'Deaths']
+                    )
+                ])
             ]),
-            html.Div(className='four columns', children=[
-                html.H5('State / Province'),
-                dcc.Dropdown(
-                    id='state',
-                    value='<all>'
-                )
-            ]),
-            html.Div(className='four columns', children=[
-                html.H5('Selected Metrics'),
-                dcc.Checklist(
-                    id='metrics',
-                    options=[{'label': m, 'value': m} for m in ['Confirmed', 'Deaths']],
-                    value=['Confirmed', 'Deaths']
-                )
-            ])
-        ]),
-        dcc.Graph(
-            id='plot_new_metrics',
-            config={'displayModeBar': False}
-        ),
-        dcc.Graph(
-            id='plot_cum_metrics',
-            config={'displayModeBar': False}
-        )
-    ])
+            dcc.Graph(
+                id='plot_new_metrics',
+                config={'displayModeBar': False},
+            ),
+            dcc.Graph(
+                id='plot_cum_metrics',
+                config={'displayModeBar': False}
+            ),
+        ])
 
 
 def data_by_country(country):
@@ -123,6 +133,9 @@ def barchart(data, metrics, prefix='', yaxisTitle=''):
     return figure
 
 
+app.layout = app_layout
+
+
 @app.callback(
     [Output('state', 'options'), Output('state', 'value')],
     [Input('country', 'value')]
@@ -141,7 +154,11 @@ def update_states(country):
         Output('plot_new_metrics', 'figure'),
         Output('plot_cum_metrics', 'figure'),
     ],
-    [Input('country', 'value'), Input('state', 'value'), Input('metrics', 'value')]
+    [
+        Input('country', 'value'),
+        Input('state', 'value'),
+        Input('metrics', 'value'),
+    ]
 )
 def update_plot_new_metrics(country, state, metrics):
     data = accumulative_data(country, state)
