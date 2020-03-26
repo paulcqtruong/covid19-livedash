@@ -9,10 +9,10 @@ from datetime import datetime
 
 baseURL = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/'
 
-external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
+# external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 tickFont = {'size': 12, 'color': 'rgb(30,30,30)', 'family': 'Courier New, monospace'}
-app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+app = dash.Dash(__name__)
 # app.config.suppress_callback_exceptions = True
 all_data = None
 countries = None
@@ -51,8 +51,9 @@ def app_layout():
         id='main_layout',
         style={'font-family': 'Courier New, monospace'},
         children=[
-            html.Div(f'Refresh the page to update (Last Updated {str(get_timenow())})', id='update-time'),
-            html.H1('Case History of the Coronavirus (COVID-19)'),
+            html.Div(f'Refresh the page to update (Last Updated {str(get_timenow())})', id='update-time',
+                     style={'color': '#6d7073'}),
+            html.H1('Evolution of the Coronavirus (COVID-19)'),
             html.Div(className='row', children=[
                 html.Div(className='four columns', children=[
                     html.H5('Country'),
@@ -82,6 +83,7 @@ def app_layout():
                 id='plot_new_metrics',
                 config={'displayModeBar': False},
             ),
+            html.Br(),
             dcc.Graph(
                 id='plot_cum_metrics',
                 config={'displayModeBar': False}
