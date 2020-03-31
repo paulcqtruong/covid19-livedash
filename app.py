@@ -30,10 +30,11 @@ def load_single_data(fileName, columnName):
 def load_latest_data():
     confirmed_data = load_single_data('time_series_covid19_confirmed_global.csv', 'CumConfirmed')  # time_series_19-covid-Confirmed.csv
     deaths_data = load_single_data('time_series_covid19_deaths_global.csv', 'CumDeaths')  # time_series_19-covid-Deaths.csv
-    # recovered_data = load_single_data('time_series_19-covid-Recovered.csv', 'CumRecovered')
-    _data = confirmed_data.merge(deaths_data)
+    recovered_data = load_single_data('time_series_covid19_recovered_global.csv', 'CumRecovered')
+    _data = confirmed_data.merge(deaths_data).merge(recovered_data)
     _data['CumConfirmed'] = _data['CumConfirmed'].astype(float)
     _data['CumDeaths'] = _data['CumDeaths'].astype(float)
+    _data['CumRecovered'] = _data['CumRecovered'].astype(float)
     return _data
 
 
@@ -74,8 +75,8 @@ def app_layout():
                     html.H5('Selected Metrics'),
                     dcc.Checklist(
                         id='metrics',
-                        options=[{'label': m, 'value': m} for m in ['Confirmed', 'Deaths']],
-                        value=['Confirmed', 'Deaths']
+                        options=[{'label': m, 'value': m} for m in ['Confirmed', 'Deaths', 'Recovered']],
+                        value=['Confirmed', 'Deaths', 'Recovered']
                     )
                 ])
             ]),
@@ -112,6 +113,7 @@ def accumulative_data(country, state):
 def daily_change_data(data):
     data['NewConfirmed'] = data['CumConfirmed'].diff()
     data['NewDeaths'] = data['CumDeaths'].diff()
+    data['NewRecovered'] = data['CumRecovered'].diff()
     return data.dropna()
 
 
