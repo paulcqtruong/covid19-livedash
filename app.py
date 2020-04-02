@@ -27,14 +27,60 @@ def load_single_data(fileName, columnName):
     return data
 
 
-def load_latest_data():
-    confirmed_data = load_single_data('time_series_covid19_confirmed_global.csv', 'CumConfirmed')  # time_series_19-covid-Confirmed.csv
-    deaths_data = load_single_data('time_series_covid19_deaths_global.csv', 'CumDeaths')  # time_series_19-covid-Deaths.csv
+def load_US_confirmed_data(file_name, column_name):
+    data = pd.read_csv(baseURL + file_name) \
+        .drop(['UID', 'iso2', 'iso3', 'code3', 'FIPS', 'Admin2', 'Lat', 'Long_', 'Combined_Key'], axis=1) \
+        .groupby(by=['Country_Region', 'Province_State']) \
+        .sum() \
+        .reset_index()
+
+    data = data.melt(id_vars=['Country_Region', 'Province_State'], var_name='date', value_name=column_name) \
+        .fillna('<all>')
+    data.rename(columns={'Country_Region': 'Country/Region', 'Province_State': 'Province/State'}, inplace=True)
+    data['date'] = data['date'].astype('datetime64[ns]')
+    return data
+
+
+def load_US_deaths_data(file_name, column_name):
+    data = pd.read_csv(baseURL + file_name) \
+        .drop(['UID', 'iso2', 'iso3', 'code3', 'FIPS', 'Admin2', 'Lat', 'Long_', 'Combined_Key', 'Population'], axis=1) \
+        .groupby(by=['Country_Region', 'Province_State']) \
+        .sum() \
+        .reset_index()
+
+    data = data.melt(id_vars=['Country_Region', 'Province_State'], var_name='date', value_name=column_name) \
+        .fillna('<all>')
+    data.rename(columns={'Country_Region': 'Country/Region', 'Province_State': 'Province/State'}, inplace=True)
+    data['date'] = data['date'].astype('datetime64[ns]')
+    return data
+
+
+def load_US_latest_data():
+    confirmed_data = load_US_confirmed_data('time_series_covid19_confirmed_US.csv', 'CumConfirmed')
+    deaths_data = load_US_deaths_data('time_series_covid19_deaths_US.csv', 'CumDeaths')
+    _data = confirmed_data.merge(deaths_data)
+    _data['CumConfirmed'] = _data['CumConfirmed'].astype(float)
+    _data['CumDeaths'] = _data['CumDeaths'].astype(float)
+    _data['CumRecovered'] = 0  # not available
+    return _data
+
+
+def load_global_latest_data():
+    # load global data
+    confirmed_data = load_single_data('time_series_covid19_confirmed_global.csv', 'CumConfirmed')
+    deaths_data = load_single_data('time_series_covid19_deaths_global.csv', 'CumDeaths')
     recovered_data = load_single_data('time_series_covid19_recovered_global.csv', 'CumRecovered')
     _data = confirmed_data.merge(deaths_data).merge(recovered_data)
     _data['CumConfirmed'] = _data['CumConfirmed'].astype(float)
     _data['CumDeaths'] = _data['CumDeaths'].astype(float)
     _data['CumRecovered'] = _data['CumRecovered'].astype(float)
+
+    # load US data
+    us_data = load_US_latest_data()
+
+    # combine the two dataset
+    _data = _data[_data['Country/Region'] != 'US']
+    _data = _data.append(us_data, sort=False)
     return _data
 
 
@@ -44,7 +90,7 @@ def get_timenow():
 
 def app_layout():
     global all_data, countries
-    all_data = load_latest_data()
+    all_data = load_global_latest_data()
     countries = all_data['Country/Region'].unique()
     countries = np.append(countries, '<all>')
     countries.sort()
