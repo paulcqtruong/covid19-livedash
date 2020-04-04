@@ -6,6 +6,7 @@ from dash.dependencies import Input, Output
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import os
 
 baseURL = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/'
 
@@ -65,6 +66,11 @@ def load_US_latest_data():
     return _data
 
 
+def get_active_cases(data: pd.DataFrame):
+    data['CumActive'] = data['CumConfirmed'] - data['CumDeaths'] - data['CumRecovered']
+    return data
+
+
 def load_global_latest_data():
     # load global data
     confirmed_data = load_single_data('time_series_covid19_confirmed_global.csv', 'CumConfirmed')
@@ -79,8 +85,9 @@ def load_global_latest_data():
     us_data = load_US_latest_data()
 
     # combine the two dataset
-    _data = _data[_data['Country/Region'] != 'US']
+    # _data = _data[_data['Country/Region'] != 'US']
     _data = _data.append(us_data, sort=False)
+    _data = get_active_cases(_data)
     return _data
 
 
@@ -121,8 +128,8 @@ def app_layout():
                     html.H5('Selected Metrics'),
                     dcc.Checklist(
                         id='metrics',
-                        options=[{'label': m, 'value': m} for m in ['Confirmed', 'Deaths', 'Recovered']],
-                        value=['Confirmed', 'Deaths', 'Recovered']
+                        options=[{'label': m, 'value': m} for m in ['Confirmed', 'Deaths', 'Recovered', 'Active']],
+                        value=['Confirmed', 'Deaths', 'Recovered', 'Active']
                     )
                 ])
             ]),
@@ -135,22 +142,42 @@ def app_layout():
                 id='plot_cum_metrics',
                 config={'displayModeBar': False}
             ),
+            html.Br(),
+            html.H6(
+                html.A('Powered By COVID-19 Data Repository by Johns Hopkins CSSE',
+                       style={'color': '#1c1b1b'},
+                       href='https://github.com/CSSEGISandData/COVID-19'
+                       )
+            )
         ])
 
 
 def data_by_country(country):
     if country == '<all>':
-        return all_data.drop('Country/Region', axis=1)
+        return all_data.loc[~((all_data['Country/Region'] == 'US') & (all_data['Province/State'] != '<all>')), :]\
+            .drop('Country/Region', axis=1)
     else:
         return all_data.loc[all_data['Country/Region'] == country].drop('Country/Region', axis=1)
 
 
+def data_by_state(data: pd.DataFrame, country: str, state: str):
+    if state == '<all>':
+        if country == 'US':
+            data = data.loc[data['Province/State'] == '<all>']
+            return data.drop('Province/State', axis=1)
+        else:
+            return data.drop('Province/State', axis=1).groupby('date').sum().reset_index()
+    else:
+        if country == 'US':
+            data = data.loc[data['Province/State'] != '<all>']
+            return data.loc[data['Province/State'] == state]
+        else:
+            return data.loc[data['Province/State'] == state]
+
+
 def accumulative_data(country, state):
     data = data_by_country(country)
-    if state == '<all>':
-        data = data.drop('Province/State', axis=1).groupby('date').sum().reset_index()
-    else:
-        data = data.loc[data['Province/State'] == state]
+    data = data_by_state(data, country, state)
     data = data.fillna(0)
     data['dateStr'] = data['date'].dt.strftime('%b %d, %Y')
     return data
@@ -160,6 +187,7 @@ def daily_change_data(data):
     data['NewConfirmed'] = data['CumConfirmed'].diff()
     data['NewDeaths'] = data['CumDeaths'].diff()
     data['NewRecovered'] = data['CumRecovered'].diff()
+    data['NewActive'] = data['CumActive'].diff()
     return data.dropna()
 
 
@@ -168,7 +196,8 @@ def barchart(data, metrics, prefix='', yaxisTitle=''):
         go.Bar(
             name=metric, x=data.date, y=data[prefix + metric],
             marker_line_color='rgb(0,0,0)', marker_line_width=1,
-            marker_color={'Deaths': 'rgb(200,30,30)', 'Recovered': 'rgb(30,200,30)', 'Confirmed': 'rgb(100,140,240)'}[
+            marker_color={'Deaths': 'rgb(200,30,30)', 'Recovered': 'rgb(30,200,30)',
+                          'Confirmed': 'rgb(100,140,240)', 'Active': 'rgb(255,191,0)'}[
                 metric]
         ) for metric in metrics
     ])
@@ -219,4 +248,4 @@ def update_plot_new_metrics(country, state, metrics):
 
 
 if __name__ == '__main__':
-    app.run_server(host='0.0.0.0', port=8050, debug=True)
+    app.run_server(host='0.0.0.0', port=8050, debug=os.getenv('DEBUG', False))
