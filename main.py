@@ -15,6 +15,7 @@ baseURL = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse
 tickFont = {'size': 12, 'color': 'rgb(30,30,30)', 'family': 'Courier New, monospace'}
 app = dash.Dash(__name__)
 # app.config.suppress_callback_exceptions = True
+server = app.server
 all_data = None
 countries = None
 
